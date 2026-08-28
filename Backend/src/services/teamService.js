@@ -103,3 +103,57 @@ export const addTeamMemberService = async ({
 
   return member;
 };
+
+export const updateTeamRoleService = async({teamId,userId,role})=>{
+  const allowedRoles = ["ADMIN","MEMBER"];
+
+  if(!allowedRoles.includes(role)){
+    const error = new Error("Invalid team role")
+    error.statusCode = 400;
+    throw error;
+  }
+
+
+  const member = await TeamMember.findOne({
+    where:{
+      teamId,
+      userId
+    }
+  });
+
+  if(member.role==='OWNER'){
+    const error =  new Error("owner role cannot be changed here ");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  member.role = role
+  await member.save();
+  return member;
+};
+
+export const removeTeamMemberService = async({
+  teamId,
+  userId,
+  role
+})=>{
+  const member = TeamMember.findOne({
+    where:{
+      teamId,
+      userId
+    }
+  });
+  if(!member){
+    const error = new Error("Team member not found")
+    error.statusCode = 404
+    throw error
+  }
+  if (member.role==="OWNER"){
+    const error = new Error("Team owner cannot be removed")
+    error.statusCode=403
+    throw error;
+  }
+
+  await member.destroy();
+  return member
+}

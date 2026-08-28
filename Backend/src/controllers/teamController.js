@@ -1,7 +1,8 @@
 import {
   createTeamService,
   getMyTeamsService,
-  
+  updateTeamRoleService,
+  removeTeamMemberService,
   addTeamMemberService,
 } from "../services/teamService.js";
 
@@ -88,3 +89,60 @@ export const addTeamMember = async (req, res) => {
       });
   }
 };
+
+export const updateTeamMemberRole = async(req,res)=>{
+  try {
+      
+      const {teamId,userId} = req.params
+      const {role} =  req.body
+
+      if(!role){
+        return res.status(400).json({
+          success:false,
+          message:"role is required"
+        })
+      }
+
+      const member = await updateTeamRoleService({
+        teamId,
+        userId,
+        role
+      })
+
+      return res.status(200).json({
+        success:true,
+        message:"Team member role updated successfully",
+        data:{
+          member
+        }
+      })
+
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success:false,
+      message:error.message
+    })
+  }
+}
+
+export const removeTeamMember = async(req,res)=>{
+  try{
+
+    const {teamId,userId} = req.params
+
+    await removeTeamMemberService({
+      teamId,
+      userId
+    })
+    return res.status(200).json({
+      success:true,
+      message:"Team member removed successfully"
+    })
+  }
+  catch(error){
+    return res.status(statusCode || 500).json({
+      success:false,
+      message:error.message
+    })
+  }
+}
