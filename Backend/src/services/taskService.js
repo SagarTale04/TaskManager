@@ -1,0 +1,372 @@
+import Task from "../models/Task.js";
+import Sprint from "../models/Sprint.js";
+import Project from "../models/Project.js";
+import User from "../models/User.js";
+import Comment from "../models/Comment.js";
+import TeamMember from "../models/TeamMember.js";
+import {
+  getProjectWithAccess,
+  getSprintWithAccess,
+  getTaskWithAccess,
+} from "./accessService.js";
+
+const VALID_TASK_STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"];
+const VALID_TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+
+export const createTaskService = async ({
+  projectId,
+  userId,
+  title,
+  description,
+  status,
+  priority,
+  storyPoints,
+  assignedTo,
+  dueDate,
+  sprintId,
+}) => {
+  const { project, membership } = await getProjectWithAccess({
+    projectId,
+    userId,
+  });
+
+  if (project.status === "ARCHIVED") {
+    const error = new Error("Cannot create task in an archived project");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!["OWNER", "ADMIN"].includes(membership.role)) {
+    const error = new Error("You do not have permission to create a task");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (!title || !title.trim()) {
+    const error = new Error("Task title is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (status !== undefined && !VALID_TASK_STATUSES.includes(status)) {
+    const error = new Error("Invalid task status");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (priority !== undefined && !VALID_TASK_PRIORITIES.includes(priority)) {
+    const error = new Error("Invalid task priority");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (sprintId) {
+    const sprint = await Sprint.findByPk(sprintId);
+    if (!sprint) {
+      const error = new Error("Sprint not found");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (sprint.projectId !== project.id) {
+      const error = new Error("Sprint does not belong to this project");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (sprint.status === "CANCELLED") {
+      const error = new Error("Cannot add task to a cancelled sprint");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  if (assignedTo) {
+    const assigneeMember = await TeamMember.findOne({
+      where: {
+        teamId: project.teamId,
+        userId: assignedTo,
+      },
+    });
+
+    if (!assigneeMember) {
+      const error = new Error(
+        "Assigned user is not a member of this project's team"
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  const task = await Task.create({
+    projectId: project.id,
+    sprintId: sprintId || null,
+    title: title.trim(),
+    description: description || null,
+    status: status || "TODO",
+    priority: priority || "MEDIUM",
+    storyPoints: storyPoints !== undefined ? storyPoints : null,
+    assignedTo: assignedTo || null,
+    createdBy: userId,
+    dueDate: dueDate || null,
+  });
+
+  return task;
+};
+
+export const getProjectTasksService = async ({
+  projectId,
+  userId,
+  sprintId,
+  status,
+  priority,
+  assignedTo,
+  page,
+  limit
+}) => {
+  await getProjectWithAccess({ projectId, userId });
+
+  const where = { projectId };
+
+  if (sprintId !== undefined) {
+    where.sprintId = sprintId === "null" ? null : sprintId;
+  }
+  if (status) {
+    where.status = status;
+  }
+  if (priority) {
+    where.priority = priority;
+  }
+  if (assignedTo) {
+    where.assignedTo = assignedTo;
+  }
+
+  const tasks = await Task.findAll({
+    where,
+    include: [
+      {
+        model: User,
+        as: "creator",
+        attributes: ["id", "name", "email"],
+      },
+      {
+        model: User,
+        as: "assignee",
+        attributes: ["id", "name", "email"],
+      },
+      {
+        model: Sprint,
+        as: "sprint",
+        attributes: ["id", "name", "status"],
+      },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+
+  return tasks;
+};
+
+export const getSprintTasksService = async ({ sprintId, userId }) => {
+  await getSprintWithAccess({ sprintId, userId });
+
+  const tasks = await Task.findAll({
+    where: { sprintId },
+    include: [
+      {
+        model: User,
+        as: "creator",
+        attributes: ["id", "name", "email"],
+      },
+      {
+        model: User,
+        as: "assignee",
+        attributes: ["id", "name", "email"],
+      },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+
+  return tasks;
+};
+
+export const getTaskByIdService = async ({ taskId, userId }) => {
+  await getTaskWithAccess({ taskId, userId });
+
+  const task = await Task.findByPk(taskId, {
+    include: [
+      {
+        model: User,
+        as: "creator",
+        attributes: ["id", "name", "email"],
+      },
+      {
+        model: User,
+        as: "assignee",
+        attributes: ["id", "name", "email"],
+      },
+      {
+        model: Sprint,
+        as: "sprint",
+        attributes: ["id", "name", "status"],
+      },
+      {
+        model: Project,
+        as: "project",
+        attributes: ["id", "name", "teamId", "status"],
+      },
+      {
+        model: Comment,
+        as: "comments",
+        include: [
+          {
+            model: User,
+            as: "author",
+            attributes: ["id", "name", "email"],
+          },
+        ],
+      },
+    ],
+  });
+
+  return task;
+};
+
+export const updateTaskService = async ({
+  taskId,
+  userId,
+  title,
+  description,
+  status,
+  priority,
+  storyPoints,
+  assignedTo,
+  dueDate,
+  sprintId,
+}) => {
+  const { task, project, membership } = await getTaskWithAccess({
+    taskId,
+    userId,
+  });
+
+  if (project.status === "ARCHIVED") {
+    const error = new Error("Cannot update task in an archived project");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!["OWNER", "ADMIN"].includes(membership.role)) {
+    const error = new Error("You do not have permission to update this task");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (title !== undefined) {
+    if (!title || !title.trim()) {
+      const error = new Error("Task title cannot be empty");
+      error.statusCode = 400;
+      throw error;
+    }
+    task.title = title.trim();
+  }
+
+  if (status !== undefined) {
+    if (!VALID_TASK_STATUSES.includes(status)) {
+      const error = new Error("Invalid task status");
+      error.statusCode = 400;
+      throw error;
+    }
+    task.status = status;
+  }
+
+  if (priority !== undefined) {
+    if (!VALID_TASK_PRIORITIES.includes(priority)) {
+      const error = new Error("Invalid task priority");
+      error.statusCode = 400;
+      throw error;
+    }
+    task.priority = priority;
+  }
+
+  if (description !== undefined) {
+    task.description = description;
+  }
+
+  if (storyPoints !== undefined) {
+    task.storyPoints = storyPoints;
+  }
+
+  if (dueDate !== undefined) {
+    task.dueDate = dueDate;
+  }
+
+  if (sprintId !== undefined) {
+    if (sprintId === null || sprintId === 0) {
+      task.sprintId = null;
+    } else {
+      const sprint = await Sprint.findByPk(sprintId);
+      if (!sprint) {
+        const error = new Error("Sprint not found");
+        error.statusCode = 404;
+        throw error;
+      }
+      if (sprint.projectId !== project.id) {
+        const error = new Error("Sprint does not belong to this project");
+        error.statusCode = 400;
+        throw error;
+      }
+      if (sprint.status === "CANCELLED") {
+        const error = new Error("Cannot assign task to a cancelled sprint");
+        error.statusCode = 400;
+        throw error;
+      }
+      task.sprintId = sprintId;
+    }
+  }
+
+  if (assignedTo !== undefined) {
+    if (assignedTo === null || assignedTo === 0) {
+      task.assignedTo = null;
+    } else {
+      const assigneeMember = await TeamMember.findOne({
+        where: {
+          teamId: project.teamId,
+          userId: assignedTo,
+        },
+      });
+
+      if (!assigneeMember) {
+        const error = new Error(
+          "Assigned user is not a member of this project's team"
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+      task.assignedTo = assignedTo;
+    }
+  }
+
+  await task.save();
+
+  return task;
+};
+
+export const deleteTaskService = async ({ taskId, userId }) => {
+  const { task, project, membership } = await getTaskWithAccess({
+    taskId,
+    userId,
+  });
+
+  if (project.status === "ARCHIVED") {
+    const error = new Error("Cannot delete task in an archived project");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!["OWNER", "ADMIN"].includes(membership.role)) {
+    const error = new Error("You do not have permission to delete this task");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  await task.destroy();
+
+  return { id: taskId };
+};

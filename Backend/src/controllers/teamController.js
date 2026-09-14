@@ -140,7 +140,7 @@ export const removeTeamMember = async(req,res)=>{
     })
   }
   catch(error){
-    return res.status(statusCode || 500).json({
+    return res.status(error.statusCode || 500).json({
       success:false,
       message:error.message
     })

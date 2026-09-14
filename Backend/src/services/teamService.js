@@ -132,28 +132,27 @@ export const updateTeamRoleService = async({teamId,userId,role})=>{
   return member;
 };
 
-export const removeTeamMemberService = async({
-  teamId,
-  userId,
-  role
-})=>{
-  const member = TeamMember.findOne({
-    where:{
+export const removeTeamMemberService = async ({ teamId, userId }) => {
+  const member = await TeamMember.findOne({
+    where: {
       teamId,
-      userId
-    }
+      userId,
+    },
   });
-  if(!member){
-    const error = new Error("Team member not found")
-    error.statusCode = 404
-    throw error
+
+  if (!member) {
+    const error = new Error("Team member not found");
+    error.statusCode = 404;
+    throw error;
   }
-  if (member.role==="OWNER"){
-    const error = new Error("Team owner cannot be removed")
-    error.statusCode=403
+
+  if (member.role === "OWNER") {
+    const error = new Error("Team owner cannot be removed");
+    error.statusCode = 403;
     throw error;
   }
 
   await member.destroy();
-  return member
-}
+
+  return member;
+};
