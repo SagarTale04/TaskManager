@@ -51,7 +51,7 @@ export const getTaskCommentsService = async ({ taskId, userId }) => {
         attributes: ["id", "name", "email"],
       },
     ],
-    order: [["createdAt", "ASC"]],
+    order: [["created_at", "ASC"]],
   });
 
   return comments;

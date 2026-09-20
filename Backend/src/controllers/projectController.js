@@ -29,11 +29,11 @@ export const createProject = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Porject created successfully",
-      date: {
+      message: "Project created successfully",
+      data: {
         project,
-      }
-    })
+      },
+    });
   }
   catch (error) {
 

@@ -5,11 +5,13 @@ import {
   updateSprint,
 } from "../controllers/sprintController.js";
 import { getSprintTasks } from "../controllers/taskController.js";
+import validate from "../middleware/validate.js";
+import { updateSprintSchema } from "../validators/sprintValidator.js";
 
 const router = express.Router();
 
 router.get("/:sprintId", protect, getSprintById);
-router.patch("/:sprintId", protect, updateSprint);
+router.patch("/:sprintId", protect, validate(updateSprintSchema), updateSprint);
 router.get("/:sprintId/tasks", protect, getSprintTasks);
 
 export default router;

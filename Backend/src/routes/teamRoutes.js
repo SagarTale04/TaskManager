@@ -16,6 +16,13 @@ import {
 import { protect } from "../middleware/authMiddleware.js";
 import { authorize } from "../middleware/roleMiddleware.js";
 import { authorizeTeamRole } from "../middleware/teamRoleMiddleware.js";
+import validate from "../middleware/validate.js";
+import {
+  createTeamSchema,
+  addTeamMemberSchema,
+  updateTeamMemberRoleSchema,
+} from "../validators/teamValidator.js";
+import { createProjectSchema } from "../validators/projectValidator.js";
 
 const router = express.Router();
 
@@ -23,6 +30,7 @@ router.post(
   "/",
   protect,
   authorize("SUPER_ADMIN", "ADMIN"),
+  validate(createTeamSchema),
   createTeam
 );
 
@@ -36,6 +44,7 @@ router.post(
   "/:teamId/members",
   protect,
   authorizeTeamRole("OWNER", "ADMIN"),
+  validate(addTeamMemberSchema),
   addTeamMember
 );
 
@@ -43,6 +52,7 @@ router.patch(
   "/:teamId/members/:userId",
   protect,
   authorizeTeamRole("OWNER"),
+  validate(updateTeamMemberRoleSchema),
   updateTeamMemberRole
 );
 
@@ -57,6 +67,7 @@ router.post(
   "/:teamId/projects",
   protect,
   authorizeTeamRole("OWNER", "ADMIN"),
+  validate(createProjectSchema),
   createProject
 );
 

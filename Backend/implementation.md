@@ -1,455 +1,98 @@
-You are working on my existing full-stack project called SyncSprint.
+Continue working on my SyncSprint backend.
 
-IMPORTANT:
-Do not redesign the project or introduce unnecessary abstractions.
-Do not rewrite working code unless there is a clear bug or cleanup benefit.
-Follow the existing architecture and naming conventions exactly.
-
-Current backend stack:
+Tech stack:
 - Node.js
-- Express.js 5
+- Express 5
 - PostgreSQL
 - Sequelize 6
-- ES Modules
-- JWT authentication
-- bcrypt
-- Sequelize CLI migrations and seeders
-
-Backend architecture already used:
-
-Route
-→ Middleware
-→ Controller
-→ Service
-→ Sequelize Model
-→ PostgreSQL
-
-Existing folders:
-
-Backend/src/
-  config/
-  migrations/
-  seeders/
-  models/
-  controllers/
-  services/
-  middleware/
-  routes/
-  utils/
-  app.js
-  server.js
+- sequelize-cli
+- ES modules for runtime code
+- CommonJS .cjs for migrations
 
 IMPORTANT:
-The middleware folder is named exactly:
-
-src/middleware/
-
-not "middlewares".
-
-Local ES module imports must include .js.
-
-Existing entities:
-
-User
-Team
-TeamMember
-Project
-Sprint
-Task
-Comment
-
-Database hierarchy:
-
-User
-  ↓ membership
-Team
-  ↓
-Project
-  ↓
-Sprint
-  ↓
-Task
-  ↓
-Comment
-
-Existing global roles:
-
-SUPER_ADMIN
-ADMIN
-DEVELOPER
-
-Existing team roles:
-
-OWNER
-ADMIN
-MEMBER
-
-Global role is stored in users.role.
-Team-specific role is stored in team_members.role.
-
-Existing authorization philosophy:
-
-- protect middleware authenticates JWT and sets req.user
-- authorize(...) handles global roles
-- team membership / team roles decide access to team-owned resources
-- Project belongs to Team
-- Sprint belongs to Project
-- Task belongs to Project and optionally Sprint
-- Comment belongs to Task
-
-Already implemented and working:
-
-AUTH
-- register
-- login
-- get logged-in user
-- JWT authentication
-- password hashing
-
-TEAM
-- create team
-- get my teams
-- add team member
-- update member role
-- remove member
-
-PROJECT
-- create project
-- list team projects
-- get project by id
-- update project
-- archive project
-
-Project archive is implemented by setting:
-
-status = "ARCHIVED"
-
-instead of permanently deleting the row.
-
-SPRINT already implemented:
-- create sprint
-- list project sprints
-- get sprint by id
-- update sprint
-
-Sprint access works by:
-
-sprintId
-→ Sprint.projectId
-→ Project.teamId
-→ TeamMember
-→ check logged-in user
-
-For writes, OWNER / ADMIN are generally allowed.
-For reads, OWNER / ADMIN / MEMBER are generally allowed.
+First inspect the existing project, migrations, models, associations, services, and current database schema. Do not assume field names. The existing migrations/database schema are the source of truth.
 
 TASK:
-Complete the remaining backend cleanly.
+Complete the DATABASE INDEXING / QUERY PERFORMANCE part of the backend.
 
-Before changing anything:
-1. Inspect all existing migrations.
-2. Inspect models.
-3. Inspect associations in models/index.js.
-4. Inspect routes, controllers and services.
-5. Treat the migrations / actual DB schema as the source of truth.
-6. Do not invent fields, enum values, relationships, routes or permissions that conflict with the current schema.
+I do not want unnecessary refactoring or new features. Only add indexes that are justified by the query patterns already used by SyncSprint.
 
-TASK 1 — Finish Sprint module
+Current known situation:
+- tasks currently only has the automatically-created primary-key index on `id`.
+- `EXPLAIN ANALYZE SELECT * FROM tasks WHERE project_id = 1;`
+  currently shows a sequential scan.
+- The application frequently retrieves tasks using `projectId`.
+- Task listing also supports filters such as:
+  - sprintId
+  - status
+  - priority
+  - assignedTo
+- Task listing supports pagination, search and sorting.
+- Do NOT blindly create an index for every column.
 
-Inspect the Sprint migration/model first.
+Please:
 
-If the Sprint status enum already supports a reasonable non-destructive terminal state such as COMPLETED, use that.
+1. Inspect the actual migrations and current service queries for:
+   - tasks
+   - projects
+   - sprints
+   - team_members
+   - comments
 
-Do NOT add ARCHIVED to the database enum unless a migration would genuinely be required.
+2. Identify the most useful indexes based on the application's existing query patterns.
 
-Complete any missing Sprint endpoint cleanly.
+3. Check whether an index already exists before adding an equivalent/redundant one.
 
-Avoid hard deleting sprints if doing so would unnecessarily destroy related tasks.
+4. At minimum, evaluate whether `tasks.project_id` should be indexed because task retrieval frequently uses:
+   WHERE project_id = ?
 
-TASK 2 — Complete Task module
+5. Evaluate useful foreign-key/access-pattern indexes such as project/team, sprint/project, comments/task, membership lookups, etc., but only add them when justified by existing queries.
 
-Implement clean REST APIs for the existing Task schema.
+6. Consider composite indexes ONLY when an existing frequent query pattern genuinely benefits from one. Do not over-index the database.
 
-Use the current migration/model field names exactly.
+7. Create proper Sequelize migration file(s) for the indexes.
 
-Likely task functionality should include, where supported by the schema:
+Use actual database column names in migrations, such as `project_id`, rather than Sequelize model property names such as `projectId`.
 
-- create task
-- list tasks for a project and/or sprint
-- get task by id
-- update task
-- update task status
-- assign / reassign task
-- priority
-- story points
-- due date
-- delete/archive only if appropriate for the existing schema
+Every index must:
+- have a clear descriptive name
+- be created in `up()`
+- be correctly removed in `down()`
 
-Do not invent features if the schema does not support them.
+8. Run the migrations.
 
-Important access rule:
+9. Verify the resulting indexes.
 
-To authorize access to a task, trace:
+10. Where practical, use EXPLAIN / EXPLAIN ANALYZE on representative SELECT queries before/after indexing.
 
-Task
-→ Project
-→ Team
-→ TeamMember
+IMPORTANT:
+The development database currently contains very little seeded data, so PostgreSQL may still choose a sequential scan even when an index exists. Do not force PostgreSQL to use an index just to produce an Index Scan.
 
-If a task has sprintId, do not assume Sprint is the source of team ownership if Project already provides it.
+11. Make sure existing APIs and Sequelize models continue working after the changes.
 
-Read operations:
-any member of the project's team may generally read.
+12. Do not modify application behavior just for indexing.
 
-Write operations:
-use sensible OWNER / ADMIN permissions based on the existing application design.
+13. Do not add unrelated new concepts or features.
 
-For task assignment:
-verify the assignee exists and belongs to the project's team before assigning the task.
-
-Do not allow assignment to arbitrary users outside the team.
-
-TASK 3 — Complete Comment module
-
-Implement REST APIs appropriate to the existing Comment schema.
-
-Likely:
-- create comment on task
-- list comments for task
-- update own comment
-- delete own comment
-
-Admins/owners may be allowed broader moderation only if consistent with the existing authorization design.
-
-For comment access trace:
-
-Comment
-→ Task
-→ Project
-→ Team
-→ TeamMember
-
-A user must be a member of the task's team to interact with comments.
-
-Do not invent unsupported fields.
-
-TASK 4 — Reduce repeated authorization logic
-
-There is repeated logic such as:
-
-Project
-→ teamId
-→ TeamMember
-
-and:
-
-Sprint
-→ Project
-→ teamId
-→ TeamMember
-
-and:
-
-Task
-→ Project
-→ teamId
-→ TeamMember
-
-Clean this up only if it significantly improves readability.
-
-Prefer small reusable helpers/services such as:
-
-getProjectMembership(...)
-getSprintWithAccess(...)
-getTaskWithAccess(...)
-
-or equivalent.
-
-Do NOT create a large over-engineered permission framework.
-
-Keep the existing route-controller-service-model architecture.
-
-Services must not use req or res.
-
-Controllers should remain responsible for HTTP request/response concerns.
-
-TASK 5 — Validation and error handling
-
-Improve validation where useful.
-
-Validate things such as:
-
-- required fields
-- valid enum values
-- valid IDs
-- date ordering
-- duplicate membership where relevant
-- project/sprint/task existence
-- authorized team membership
-- assignment only to users in the team
-
-Keep error responses consistent:
-
-{
-  "success": false,
-  "message": "..."
-}
-
-Successful responses should use the existing shape:
-
-{
-  "success": true,
-  "message": "...",
-  "data": { ... }
-}
-
-Do not add a validation library unless genuinely necessary.
-
-TASK 6 — Clean code
-
-Review backend code for:
-
-- duplicate imports
-- unused imports
-- inconsistent formatting
-- incorrect field names
-- incorrect Sequelize aliases
-- incorrect routes
-- missing .js extensions
-- inconsistent error status codes
-- unnecessary comments
-- duplicate business logic
-- accidental temporary/debug code
-- obsolete test/practice files if clearly unused
-
-Do not remove anything unless it is clearly safe.
-
-Preserve existing migrations and seed data unless there is an actual schema bug.
-
-Do not use sequelize.sync() because migrations manage the database schema.
-
-TASK 7 — Route organization
-
-Keep nested collection routes with their parent resource.
-
-Examples:
-
-POST /api/teams/:teamId/projects
-GET  /api/teams/:teamId/projects
-
-POST /api/projects/:projectId/sprints
-GET  /api/projects/:projectId/sprints
-
-Task collection routes may similarly live under project/sprint routes where appropriate.
-
-Individual resource routes should use:
-
-/api/projects/:projectId
-/api/sprints/:sprintId
-/api/tasks/:taskId
-/api/comments/:commentId
-
-Keep route files clean and resource-oriented.
-
-TASK 8 — Test manually
-
-After implementation, run the backend and test all important endpoints.
-
-Test at least:
-
-1. Successful authenticated access
-2. Missing JWT
-3. Invalid JWT
-4. User outside team
-5. MEMBER attempting admin-only write
-6. OWNER / ADMIN successful write
-7. Missing resource
-8. Invalid enum/status
-9. Invalid date range
-10. Assigning task to a user outside the team
-11. Comment author editing their own comment
-12. Unauthorized user attempting comment modification
-
-Do not silently ignore errors.
-
-TASK 9 — STOP RULE
-
-This is extremely important.
-
-Complete anything that is simply a repetition or extension of concepts already present:
-- CRUD
-- Express routes
-- controllers
-- services
-- Sequelize queries
-- existing-style authorization
-- validation
-- refactoring repeated access checks
-- testing existing APIs
-
-BUT STOP and explain to me before implementing anything that introduces a genuinely new backend concept I have not yet learned.
-
-Examples of things you MUST stop before implementing:
-
-- transactions beyond patterns already used
-- database indexing/performance optimization
-- pagination strategy
-- Redis/caching
-- queues/background jobs
+DO NOT implement:
+- Redis
 - WebSockets
-- rate limiting
-- refresh-token architecture
-- email verification/password reset
-- file uploads
-- object storage
-- logging infrastructure
-- automated Jest/Supertest testing architecture
-- OpenAPI/Swagger
-- Docker/backend deployment
+- Docker
 - CI/CD
-- database locking
-- advanced security architecture
-- centralized error middleware if it meaningfully changes the current architecture
-- new database migrations/schema design
-- anything else that introduces a substantial new concept
+- refresh tokens
+- rate limiting
+- Swagger
+- frontend changes
+- major refactoring
+- unrelated performance optimizations
 
-When you encounter one of these, STOP.
+At the end, give me a short summary containing:
+- migrations created
+- indexes added
+- table + columns for each index
+- why each index was added
+- any index considered but intentionally not added
+- verification performed
+- files changed
 
-Do not implement it.
-
-Instead output:
-
-NEW CONCEPT REACHED
-
-Concept:
-<name>
-
-Why it is useful:
-<short explanation>
-
-What problem it solves in SyncSprint:
-<short explanation>
-
-Files that would likely change:
-<files>
-
-Then wait for me to implement/learn it manually.
-
-TASK 10 — Final report
-
-When all remaining work that does NOT require a new concept is complete, give me:
-
-1. Files created
-2. Files modified
-3. Routes implemented
-4. Permissions used
-5. Bugs fixed
-6. Any assumptions made
-7. Anything intentionally left unfinished
-8. Any NEW CONCEPTS you stopped before implementing
-9. Exact Postman/Thunder Client endpoints I should test
-10. A recommended Git commit message
-
-Do not touch the Next.js frontend yet.
-
-Focus only on completing and cleaning the current backend.
+Stop after the database indexing/query-performance work is complete.

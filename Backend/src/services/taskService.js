@@ -9,6 +9,7 @@ import {
   getSprintWithAccess,
   getTaskWithAccess,
 } from "./accessService.js";
+import { Op } from "sequelize";
 
 const VALID_TASK_STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"];
 const VALID_TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
@@ -119,8 +120,11 @@ export const getProjectTasksService = async ({
   status,
   priority,
   assignedTo,
+  search,
+  sortBy,
+  order,
   page,
-  limit
+  limit,
 }) => {
   await getProjectWithAccess({ projectId, userId });
 
@@ -129,18 +133,60 @@ export const getProjectTasksService = async ({
   if (sprintId !== undefined) {
     where.sprintId = sprintId === "null" ? null : sprintId;
   }
+
   if (status) {
     where.status = status;
   }
+
   if (priority) {
     where.priority = priority;
   }
+
   if (assignedTo) {
     where.assignedTo = assignedTo;
   }
 
-  const tasks = await Task.findAll({
+  if (search?.trim()) {
+    const searchTerm = search.trim();
+
+    where[Op.or] = [
+      {
+        title: {
+          [Op.iLike]: `%${searchTerm}%`,
+        },
+      },
+      {
+        description: {
+          [Op.iLike]: `%${searchTerm}%`,
+        },
+      },
+    ];
+  }
+
+  // Pagination
+  const offset = (page - 1) * limit;
+
+  // Sorting
+  const sortFieldMap = {
+    createdAt: "created_at",
+    created_at: "created_at",
+    dueDate: "due_date",
+    due_date: "due_date",
+    priority: "priority",
+    status: "status",
+    title: "title",
+  };
+
+  const selectedSortField = sortFieldMap[sortBy] || "created_at";
+
+  const selectedOrder =
+    order?.toUpperCase() === "ASC"
+      ? "ASC"
+      : "DESC";
+
+  const { count, rows } = await Task.findAndCountAll({
     where,
+
     include: [
       {
         model: User,
@@ -158,10 +204,28 @@ export const getProjectTasksService = async ({
         attributes: ["id", "name", "status"],
       },
     ],
-    order: [["createdAt", "DESC"]],
+
+    order: [[selectedSortField, selectedOrder]],
+
+    limit,
+    offset,
+    distinct: true,
   });
 
-  return tasks;
+  const totalPages = Math.ceil(count / limit);
+
+  return {
+    tasks: rows,
+
+    pagination: {
+      page,
+      limit,
+      totalItems: count,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    },
+  };
 };
 
 export const getSprintTasksService = async ({ sprintId, userId }) => {
@@ -181,7 +245,7 @@ export const getSprintTasksService = async ({ sprintId, userId }) => {
         attributes: ["id", "name", "email"],
       },
     ],
-    order: [["createdAt", "DESC"]],
+    order: [["created_at", "DESC"]],
   });
 
   return tasks;

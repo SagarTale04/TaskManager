@@ -50,7 +50,7 @@ export const getProjectSprintsService = async ({ projectId, userId }) => {
     where: {
       projectId,
     },
-    order: [["startDate", "ASC"]],
+    order: [["start_date", "ASC"]],
   });
 
   return sprints;

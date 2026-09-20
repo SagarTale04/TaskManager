@@ -31,7 +31,7 @@ export const getTeamProjectsService = async (teamId) => {
     where: {
       teamId,
     },
-    order: [["createdAt", "DESC"]],
+    order: [["created_at", "DESC"]],
   });
 
   return projects;

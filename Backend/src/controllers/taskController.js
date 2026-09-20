@@ -49,7 +49,7 @@ export const createTask = async (req, res) => {
   }
 };
 
-export const getProjectTasks = async (req, res) => {
+export const getProjectTasks = async (req, res,next) => {
   try {
     const { projectId } = req.params;
 
@@ -58,6 +58,9 @@ export const getProjectTasks = async (req, res) => {
       status,
       priority,
       assignedTo,
+      search,
+      sortBy,
+      order,
       page,
       limit,
     } = req.query;
@@ -79,6 +82,9 @@ export const getProjectTasks = async (req, res) => {
       status,
       priority,
       assignedTo,
+      search,
+      sortBy,
+      order,
       page: parsedPage,
       limit: parsedLimit,
     });
@@ -88,12 +94,10 @@ export const getProjectTasks = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message,
-    });
+    next(error)
+    };
   }
-};
+;
 
 export const getSprintTasks = async (req, res) => {
   try {

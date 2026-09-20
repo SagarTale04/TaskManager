@@ -9,7 +9,7 @@ module.exports = {
   },
 
   test: {
-    url: process.env.DATABASE_URL,
+    url: process.env.TEST_DATABASE_URL,
     dialect: "postgres",
 
     seederStorage: "sequelize",
