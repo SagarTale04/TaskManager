@@ -44,19 +44,44 @@ export const createTeamService = async ({
   }
 };
 
-export const getMyTeamsService = async(userId)=>{
-    const teams = await Team.findAll({
-        include:[{
-            model:TeamMember,
-            as: "teamMembers",
-            where:{
-                userId
-            },attributes:["role","joinedAt"]
+export const getMyTeamsService = async (userId) => {
+  const user = await User.findByPk(userId);
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
-    }]
-    })
-    return teams;
-}
+  const teamWhere = {};
+  if (!isSuperAdmin) {
+    const userMemberships = await TeamMember.findAll({
+      where: { userId },
+      attributes: ["teamId"],
+    });
+    const teamIds = userMemberships.map((m) => m.teamId);
+
+    if (teamIds.length === 0) {
+      return [];
+    }
+    teamWhere.id = teamIds;
+  }
+
+  const teams = await Team.findAll({
+    where: teamWhere,
+    include: [
+      {
+        model: TeamMember,
+        as: "teamMembers",
+        attributes: ["userId", "role", "joinedAt"],
+        include: [
+          {
+            model: User,
+            as: "user",
+            attributes: ["id", "name", "email", "role"],
+          },
+        ],
+      },
+    ],
+    order: [["id", "ASC"]],
+  });
+  return teams;
+};
 export const addTeamMemberService = async ({
   teamId,
   userId,
@@ -120,6 +145,12 @@ export const updateTeamRoleService = async({teamId,userId,role})=>{
       userId
     }
   });
+
+  if (!member) {
+    const error = new Error("Team member not found");
+    error.statusCode = 404;
+    throw error;
+  }
 
   if(member.role==='OWNER'){
     const error =  new Error("owner role cannot be changed here ");

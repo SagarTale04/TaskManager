@@ -33,7 +33,7 @@ const User = sequelize.define(
 
     role: {
       type: DataTypes.ENUM(
-        "SUPERADMIN",
+        "SUPER_ADMIN",
         "ADMIN",
         "DEVELOPER"
       ),

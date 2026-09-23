@@ -3,17 +3,31 @@ import Sprint from "../models/Sprint.js";
 import Task from "../models/Task.js";
 import Comment from "../models/Comment.js";
 import TeamMember from "../models/TeamMember.js";
+import User from "../models/User.js";
 
 /**
  * Validates project existence and user's membership in the project's team.
  */
-export const getProjectWithAccess = async ({ projectId, userId }) => {
+export const getProjectWithAccess = async ({ projectId, userId, user: passedUser }) => {
   const project = await Project.findByPk(projectId);
 
   if (!project) {
     const error = new Error("Project not found");
     error.statusCode = 404;
     throw error;
+  }
+
+  const currentUser = passedUser || (userId ? await User.findByPk(userId) : null);
+  if (currentUser && currentUser.role === "SUPER_ADMIN") {
+    return {
+      project,
+      membership: {
+        userId: currentUser.id,
+        teamId: project.teamId,
+        role: "OWNER",
+        isSuperAdmin: true,
+      },
+    };
   }
 
   const membership = await TeamMember.findOne({

@@ -31,6 +31,18 @@ describe("Security Hardening", () => {
       expect(response.headers["access-control-allow-credentials"]).toBe("true");
     });
 
+    test("should allow requests from server host origin (e.g. Swagger UI on localhost:5000)", async () => {
+      const response = await request(app)
+        .get("/api/health")
+        .set("Origin", "http://localhost:5000");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["access-control-allow-origin"]).toBe(
+        "http://localhost:5000"
+      );
+      expect(response.headers["access-control-allow-credentials"]).toBe("true");
+    });
+
     test("should allow requests without an Origin header (e.g. server-to-server or tools)", async () => {
       const response = await request(app).get("/api/health");
 

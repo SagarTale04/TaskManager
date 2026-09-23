@@ -1,98 +1,176 @@
-Continue working on my SyncSprint backend.
-
-Tech stack:
-- Node.js
-- Express 5
-- PostgreSQL
-- Sequelize 6
-- sequelize-cli
-- ES modules for runtime code
-- CommonJS .cjs for migrations
+Implement the SyncSprint frontend in my existing Next.js application using the attached UI screenshot as the main visual reference.
 
 IMPORTANT:
-First inspect the existing project, migrations, models, associations, services, and current database schema. Do not assume field names. The existing migrations/database schema are the source of truth.
+Use the screenshot for DESIGN INSPIRATION, not for finance content. SyncSprint is a project/sprint/task management application.
 
-TASK:
-Complete the DATABASE INDEXING / QUERY PERFORMANCE part of the backend.
+Tech:
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Existing Express backend at http://localhost:5000/api
 
-I do not want unnecessary refactoring or new features. Only add indexes that are justified by the query patterns already used by SyncSprint.
+DESIGN DIRECTION:
+Match the reference closely in visual language:
+- very light gray page background
+- large rounded main application container
+- white cards
+- generous spacing
+- soft borders instead of heavy shadows
+- large rounded corners
+- pill-shaped controls/navigation
+- clean modern typography
+- minimal green accent similar to the screenshot
+- black/dark gray primary text
+- muted gray secondary text
+- compact circular icon buttons
+- spacious premium SaaS appearance
 
-Current known situation:
-- tasks currently only has the automatically-created primary-key index on `id`.
-- `EXPLAIN ANALYZE SELECT * FROM tasks WHERE project_id = 1;`
-  currently shows a sequential scan.
-- The application frequently retrieves tasks using `projectId`.
-- Task listing also supports filters such as:
-  - sprintId
-  - status
-  - priority
-  - assignedTo
-- Task listing supports pagination, search and sorting.
-- Do NOT blindly create an index for every column.
+Do NOT copy the finance dashboard content.
 
-Please:
+Build a SyncSprint layout based on it.
 
-1. Inspect the actual migrations and current service queries for:
-   - tasks
-   - projects
-   - sprints
-   - team_members
-   - comments
+TOP HEADER:
+- SyncSprint logo/name on left
+- centered pill navigation:
+  Dashboard
+  My Tasks
+  Projects
+  Teams
+- search icon
+- notification icon
+- user avatar/profile menu
 
-2. Identify the most useful indexes based on the application's existing query patterns.
+LEFT ICON RAIL:
+Use a narrow rounded vertical navigation similar to the screenshot with icons for:
+- Dashboard
+- Projects
+- Sprints
+- Tasks
+- Teams
+- Settings
+- Logout
 
-3. Check whether an index already exists before adding an equivalent/redundant one.
+DASHBOARD:
+Header:
+"Welcome Back, {user name}"
 
-4. At minimum, evaluate whether `tasks.project_id` should be indexed because task retrieval frequently uses:
-   WHERE project_id = ?
+Include a compact date/filter control and a "+ New Project" primary action.
 
-5. Evaluate useful foreign-key/access-pattern indexes such as project/team, sprint/project, comments/task, membership lookups, etc., but only add them when justified by existing queries.
+Replace the finance cards with SyncSprint information:
 
-6. Consider composite indexes ONLY when an existing frequent query pattern genuinely benefits from one. Do not over-index the database.
+Small cards:
+- Active Projects
+- Current Sprint
+- Tasks Completed
+- Team Members
 
-7. Create proper Sequelize migration file(s) for the indexes.
+MAIN LARGE CARD:
+Current Sprint Progress
 
-Use actual database column names in migrations, such as `project_id`, rather than Sequelize model property names such as `projectId`.
+Show:
+- sprint name
+- sprint goal
+- completion percentage
+- completed/total tasks
+- story points
+- days remaining
 
-Every index must:
-- have a clear descriptive name
-- be created in `up()`
-- be correctly removed in `down()`
+Include a clean progress/chart visualization inspired by the reference.
 
-8. Run the migrations.
+RIGHT CARD:
+Task Overview
 
-9. Verify the resulting indexes.
+Show counts for:
+- TODO
+- IN PROGRESS
+- DONE
 
-10. Where practical, use EXPLAIN / EXPLAIN ANALYZE on representative SELECT queries before/after indexing.
+RECENT ACTIVITY / TASK TABLE:
+Use the large bottom card style from the screenshot.
+
+Columns:
+Task
+Project
+Assignee
+Priority
+Status
+Due Date
+
+Use compact badges for priority and status.
+
+PROJECT PAGE:
+Create a project workspace maintaining the same visual system.
+
+Header:
+- project name
+- project status
+- team members/avatars
+- current sprint
+- actions
+
+Tabs:
+Overview
+Board
+Sprints
+Tasks
+
+KANBAN BOARD:
+This is an important SyncSprint screen.
+
+Create columns:
+TODO
+IN PROGRESS
+DONE
+
+Task cards should display:
+- title
+- priority
+- assignee avatar
+- story points
+- due date where available
+
+Keep cards compact and elegant rather than oversized.
+
+TASK DETAIL:
+Create a polished modal or side panel containing:
+- title
+- description
+- status
+- priority
+- assignee
+- sprint
+- story points
+- due date
+- comments
+
+AUTH:
+Create a matching Login page using the same rounded, minimal visual language.
+
+RESPONSIVENESS:
+Desktop-first like the screenshot, but make the layout usable on tablet/mobile.
+
+IMPLEMENTATION RULES:
+- Use reusable components.
+- Use TypeScript properly.
+- Use Tailwind CSS 4.
+- Keep components reasonably small.
+- Do not add unnecessary UI libraries.
+- Use an icon library only if one is already installed; otherwise choose one lightweight appropriate option.
+- Do not use random gradients.
+- Do not overuse shadows.
+- Do not make every component green.
+- Green should be an accent, similar to the reference.
+- Maintain consistent spacing, radius, typography and button styles.
 
 IMPORTANT:
-The development database currently contains very little seeded data, so PostgreSQL may still choose a sequential scan even when an index exists. Do not force PostgreSQL to use an index just to produce an Index Scan.
+For this stage, focus on building the visual frontend and reusable layout/components.
 
-11. Make sure existing APIs and Sequelize models continue working after the changes.
+Do not rewrite or modify the existing backend.
+Do not invent backend endpoints.
+Do not implement WebSockets or Redis yet.
+Do not add unnecessary features.
 
-12. Do not modify application behavior just for indexing.
+Before coding, inspect the existing frontend structure and preserve the existing Next.js/Tailwind setup.
 
-13. Do not add unrelated new concepts or features.
-
-DO NOT implement:
-- Redis
-- WebSockets
-- Docker
-- CI/CD
-- refresh tokens
-- rate limiting
-- Swagger
-- frontend changes
-- major refactoring
-- unrelated performance optimizations
-
-At the end, give me a short summary containing:
-- migrations created
-- indexes added
-- table + columns for each index
-- why each index was added
-- any index considered but intentionally not added
-- verification performed
-- files changed
-
-Stop after the database indexing/query-performance work is complete.
+Build the UI using the attached screenshot as the visual reference and adapt that design system specifically for SyncSprint.

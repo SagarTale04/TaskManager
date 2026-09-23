@@ -316,10 +316,28 @@ export const updateTaskService = async ({
     throw error;
   }
 
-  if (!["OWNER", "ADMIN"].includes(membership.role)) {
-    const error = new Error("You do not have permission to update this task");
-    error.statusCode = 403;
-    throw error;
+  const isManagement = ["OWNER", "ADMIN"].includes(membership.role);
+  if (!isManagement) {
+    if (task.assignedTo !== userId) {
+      const error = new Error("Developers are only permitted to update their own assigned tasks");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const isTryingToUpdateOtherFields =
+      title !== undefined ||
+      description !== undefined ||
+      priority !== undefined ||
+      storyPoints !== undefined ||
+      assignedTo !== undefined ||
+      dueDate !== undefined ||
+      sprintId !== undefined;
+
+    if (isTryingToUpdateOtherFields || status === undefined) {
+      const error = new Error("Members are only permitted to update task status");
+      error.statusCode = 403;
+      throw error;
+    }
   }
 
   if (title !== undefined) {

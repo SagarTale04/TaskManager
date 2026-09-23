@@ -5,6 +5,11 @@ export const authorizeTeamRole = (...allowedRoles) => {
     try {
       const { teamId } = req.params;
 
+      if (req.user && req.user.role === "SUPER_ADMIN") {
+        req.teamMembership = { role: "OWNER", userId: req.user.id, teamId };
+        return next();
+      }
+
       const membership = await TeamMember.findOne({
         where: {
           teamId,

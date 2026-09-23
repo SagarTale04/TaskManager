@@ -37,6 +37,8 @@ export const login = async (req, res) => {
   }
 };
 
+import User from "../models/User.js";
+
 export const getProfile = async (req, res) => {
   return res.status(200).json({
     success: true,
@@ -44,4 +46,24 @@ export const getProfile = async (req, res) => {
       user: req.user,
     },
   });
+};
+
+export const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.findAll({
+      attributes: ["id", "name", "email", "role"],
+      order: [["name", "ASC"]],
+    });
+    return res.status(200).json({
+      success: true,
+      data: {
+        users,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
