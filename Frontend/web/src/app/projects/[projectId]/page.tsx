@@ -6,11 +6,12 @@ import AppShell from "@/src/components/layout/AppShell";
 import ProjectHeader from "@/src/components/project/ProjectHeader";
 import KanbanBoard from "@/src/components/project/KanbanBoard";
 import RecentTasksTable from "@/src/components/dashboard/RecentTasksTable";
-import { Project, Sprint, Task, TaskPriority, TaskStatus, SprintStatus } from "@/src/types";
+import { User, Project, Sprint, Task, TaskPriority, TaskStatus, SprintStatus } from "@/src/types";
 import { getProjectById, archiveProject } from "@/src/services/projectService";
 import { getProjectSprints, createSprint, updateSprint } from "@/src/services/sprintService";
 import { getProjectTasks, createTask } from "@/src/services/taskService";
-import { getMyTeams } from "@/src/services/teamService";
+import { getMyTeams, addTeamMember } from "@/src/services/teamService";
+import { getAllUsers } from "@/src/services/userService";
 import { useTaskInteraction } from "@/src/context/TaskInteractionContext";
 import { useAuth } from "@/src/context/AuthContext";
 import { Plus, Archive, Calendar, Zap, Loader2, AlertCircle, X } from "lucide-react";
@@ -32,7 +33,8 @@ export default function ProjectWorkspacePage() {
 
   const [activeTab, setActiveTab] = useState<"board" | "overview" | "sprints" | "tasks">("board");
   const [selectedSprintId, setSelectedSprintId] = useState<number | null>(null);
-  const [teamMembers, setTeamMembers] = useState<{ id: number; name: string }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ id: number; name: string; email?: string }[]>([]);
+  const [allPlatformUsers, setAllPlatformUsers] = useState<User[]>([]);
 
   // Create Task Modal state
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -64,15 +66,17 @@ export default function ProjectWorkspacePage() {
     if (!projectId) return;
     try {
       setError(null);
-      const [projData, sprintsData, tasksData, myTeams] = await Promise.all([
+      const [projData, sprintsData, tasksData, myTeams, usersList] = await Promise.all([
         getProjectById(projectId),
         getProjectSprints(projectId),
         getProjectTasks(projectId, { limit: 100 }),
         getMyTeams().catch(() => []),
+        getAllUsers().catch(() => []),
       ]);
       setProject(projData);
       setSprints(sprintsData);
       setTasks(tasksData.tasks);
+      setAllPlatformUsers(usersList);
 
       const currentTeam = myTeams.find((t) => t.id === projData.teamId);
       if (currentTeam?.teamMembers) {
@@ -82,6 +86,7 @@ export default function ProjectWorkspacePage() {
           currentTeam.teamMembers.map((m) => ({
             id: m.userId,
             name: m.user?.name || `User #${m.userId}`,
+            email: m.user?.email,
           }))
         );
       }
@@ -119,6 +124,23 @@ export default function ProjectWorkspacePage() {
     setTaskModalError(null);
 
     try {
+      const assignedUserId = taskAssignedTo !== "" ? Number(taskAssignedTo) : undefined;
+
+      // If user is not yet a member of current team, auto-enroll them so task assignment succeeds
+      if (assignedUserId && project?.teamId) {
+        const isCurrentMember = teamMembers.some((m) => m.id === assignedUserId);
+        if (!isCurrentMember) {
+          try {
+            await addTeamMember(project.teamId, {
+              userId: assignedUserId,
+              role: "MEMBER",
+            });
+          } catch (teamAddErr) {
+            console.warn("Could not automatically add user to team:", teamAddErr);
+          }
+        }
+      }
+
       await createTask(projectId, {
         title: taskTitle.trim(),
         description: taskDesc.trim() || undefined,
@@ -127,7 +149,7 @@ export default function ProjectWorkspacePage() {
         storyPoints: taskStoryPoints !== "" ? Number(taskStoryPoints) : undefined,
         dueDate: taskDueDate || undefined,
         sprintId: taskSprintId !== "" ? Number(taskSprintId) : undefined,
-        assignedTo: taskAssignedTo !== "" ? Number(taskAssignedTo) : undefined,
+        assignedTo: assignedUserId,
       });
 
       setShowTaskModal(false);
@@ -137,6 +159,7 @@ export default function ProjectWorkspacePage() {
       setTaskDueDate("");
       setTaskAssignedTo("");
       notifyTasksChanged();
+      loadData();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to create task";
       setTaskModalError(msg);
@@ -643,11 +666,26 @@ export default function ProjectWorkspacePage() {
                     className="w-full text-xs bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5 text-stone-800 focus:outline-none focus:border-emerald-500"
                   >
                     <option value="">Unassigned</option>
-                    {teamMembers.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
+                    {teamMembers.length > 0 && (
+                      <optgroup label="Team Members">
+                        {teamMembers.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} {m.email ? `(${m.email})` : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {allPlatformUsers.filter((u) => !teamMembers.some((m) => m.id === u.id)).length > 0 && (
+                      <optgroup label="Registered Platform Users">
+                        {allPlatformUsers
+                          .filter((u) => !teamMembers.some((m) => m.id === u.id))
+                          .map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.email})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 

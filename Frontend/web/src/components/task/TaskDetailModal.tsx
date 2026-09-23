@@ -3,14 +3,18 @@
 import React, { useState, useEffect } from "react";
 import { useTaskInteraction } from "@/src/context/TaskInteractionContext";
 import { useAuth } from "@/src/context/AuthContext";
-import { TaskStatus, TaskPriority } from "@/src/types";
+import { User, TaskStatus, TaskPriority } from "@/src/types";
+import { getAllUsers } from "@/src/services/userService";
+import { updateTask } from "@/src/services/taskService";
+import { addTeamMember } from "@/src/services/teamService";
 import { 
   X, 
   Send,
   MessageSquare,
   Trash2,
   AlertCircle,
-  Loader2
+  Loader2,
+  UserCheck
 } from "lucide-react";
 
 export default function TaskDetailModal() {
@@ -22,12 +26,24 @@ export default function TaskDetailModal() {
     updateTaskStatus,
     addComment,
     deleteComment,
+    openTaskDetail,
+    notifyTasksChanged,
   } = useTaskInteraction();
 
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [updatingAssignee, setUpdatingAssignee] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedTask) {
+      getAllUsers()
+        .then((users) => setAllUsers(users))
+        .catch(() => {});
+    }
+  }, [selectedTask]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -75,6 +91,35 @@ export default function TaskDetailModal() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to delete comment";
       setErrorMessage(msg);
+    }
+  };
+
+  const handleAssigneeChange = async (newUserIdStr: string) => {
+    if (!selectedTask) return;
+    const newUserId = newUserIdStr === "" ? null : Number(newUserIdStr);
+    setUpdatingAssignee(true);
+    setErrorMessage(null);
+
+    try {
+      if (newUserId !== null && selectedTask.project?.teamId) {
+        try {
+          await addTeamMember(selectedTask.project.teamId, {
+            userId: newUserId,
+            role: "MEMBER",
+          });
+        } catch {
+          // ignore if already in team
+        }
+      }
+
+      await updateTask(selectedTask.id, { assignedTo: newUserId });
+      notifyTasksChanged();
+      await openTaskDetail(selectedTask.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update assignee";
+      setErrorMessage(msg);
+    } finally {
+      setUpdatingAssignee(false);
     }
   };
 
@@ -285,8 +330,35 @@ export default function TaskDetailModal() {
                 </div>
 
                 <div>
-                  <span className="text-stone-400 block font-medium mb-1">Assignee</span>
-                  {selectedTask.assignee ? (
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-stone-400 font-medium">Assignee</span>
+                    {updatingAssignee && (
+                      <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                    )}
+                  </div>
+                  {user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" ? (
+                    <div className="space-y-1.5">
+                      <select
+                        value={selectedTask.assignedTo ?? selectedTask.assignee?.id ?? ""}
+                        disabled={updatingAssignee}
+                        onChange={(e) => handleAssigneeChange(e.target.value)}
+                        className="w-full text-xs font-medium bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-stone-800 focus:outline-none focus:border-emerald-500 cursor-pointer disabled:opacity-60"
+                      >
+                        <option value="">Unassigned</option>
+                        {allUsers.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.email})
+                          </option>
+                        ))}
+                      </select>
+                      {selectedTask.assignee && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-stone-500 px-1">
+                          <UserCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>Assigned to <strong className="text-stone-700">{selectedTask.assignee.name}</strong></span>
+                        </div>
+                      )}
+                    </div>
+                  ) : selectedTask.assignee ? (
                     <div className="flex items-center gap-2">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img

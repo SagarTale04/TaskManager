@@ -316,9 +316,17 @@ export const updateTaskService = async ({
     throw error;
   }
 
-  const isManagement = ["OWNER", "ADMIN"].includes(membership.role);
+  const currentUser = await User.findByPk(userId);
+  const isManagement =
+    currentUser?.role === "SUPER_ADMIN" ||
+    currentUser?.role === "ADMIN" ||
+    ["OWNER", "ADMIN"].includes(membership.role);
+
   if (!isManagement) {
-    if (task.assignedTo !== userId) {
+    if (task.assignedTo === null || task.assignedTo === undefined) {
+      // Auto-assign the unassigned task to the developer updating it
+      task.assignedTo = userId;
+    } else if (Number(task.assignedTo) !== Number(userId)) {
       const error = new Error("Developers are only permitted to update their own assigned tasks");
       error.statusCode = 403;
       throw error;
@@ -329,7 +337,7 @@ export const updateTaskService = async ({
       description !== undefined ||
       priority !== undefined ||
       storyPoints !== undefined ||
-      assignedTo !== undefined ||
+      (assignedTo !== undefined && Number(assignedTo) !== Number(userId)) ||
       dueDate !== undefined ||
       sprintId !== undefined;
 

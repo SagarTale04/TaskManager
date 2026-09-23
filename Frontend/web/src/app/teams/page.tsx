@@ -33,8 +33,12 @@ export default function TeamsPage() {
 
   const loadTeams = useCallback(async () => {
     try {
-      const data = await getMyTeams();
+      const [data, users] = await Promise.all([
+        getMyTeams(),
+        getAllUsers().catch(() => []),
+      ]);
       setTeams(data);
+      setAllUsers(users);
       setError(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load teams";
@@ -46,37 +50,16 @@ export default function TeamsPage() {
   }, []);
 
   useEffect(() => {
-    let ignore = false;
-    getMyTeams()
-      .then((data) => {
-        if (!ignore) {
-          setTeams(data);
-          setError(null);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!ignore) {
-          const msg = err instanceof Error ? err.message : "Failed to load teams";
-          setError(msg);
-          setLoading(false);
-        }
-      });
+    loadTeams();
+  }, [loadTeams]);
 
-    getAllUsers()
-      .then((users) => {
-        if (!ignore) {
-          setAllUsers(users);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to load users for directory:", err);
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  useEffect(() => {
+    if (selectedTeamForMember) {
+      getAllUsers()
+        .then((users) => setAllUsers(users))
+        .catch(() => {});
+    }
+  }, [selectedTeamForMember]);
 
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();

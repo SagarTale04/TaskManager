@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Task, TaskPriority, TaskStatus } from "@/src/types";
 import { useTaskInteraction } from "@/src/context/TaskInteractionContext";
+import { useAuth } from "@/src/context/AuthContext";
 import { createTask } from "@/src/services/taskService";
 import { 
   Plus, 
@@ -32,6 +33,7 @@ export default function KanbanBoard({
   canManage = true,
   onRefresh,
 }: KanbanBoardProps) {
+  const { user } = useAuth();
   const { openTaskDetail, updateTaskStatus } = useTaskInteraction();
 
   const [quickAddColumn, setQuickAddColumn] = useState<TaskStatus | null>(null);
@@ -186,7 +188,14 @@ export default function KanbanBoard({
 
               {/* Cards Container */}
               <div className="space-y-2.5 flex-1 overflow-y-auto pr-0.5">
-                {columnTasks.map((task) => (
+                {columnTasks.map((task) => {
+                  const isMyTask =
+                    Number(task.assignedTo) === Number(user?.id) ||
+                    Number(task.assignee?.id) === Number(user?.id) ||
+                    task.assignedTo === null;
+                  const canMove = canManage || isMyTask;
+
+                  return (
                   <div
                     key={task.id}
                     onClick={() => openTaskDetail(task.id)}
@@ -207,38 +216,40 @@ export default function KanbanBoard({
                         </span>
                       </div>
 
-                      {/* Quick Move Action Buttons */}
-                      <div
-                        className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {column.id !== "TODO" && (
-                          <button
-                            onClick={() => {
-                              const prevStatus =
-                                column.id === "DONE" ? "IN_PROGRESS" : "TODO";
-                              handleMoveTask(task.id, prevStatus);
-                            }}
-                            className="w-5 h-5 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-600 transition-colors cursor-pointer"
-                            title="Move Back"
-                          >
-                            <ArrowLeft className="w-2.5 h-2.5" />
-                          </button>
-                        )}
-                        {column.id !== "DONE" && (
-                          <button
-                            onClick={() => {
-                              const nextStatus =
-                                column.id === "TODO" ? "IN_PROGRESS" : "DONE";
-                              handleMoveTask(task.id, nextStatus);
-                            }}
-                            className="w-5 h-5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
-                            title="Move Forward"
-                          >
-                            <ArrowRight className="w-2.5 h-2.5" />
-                          </button>
-                        )}
-                      </div>
+                      {/* Quick Move Action Buttons (Permitted for managers, assigned dev, or unassigned tasks) */}
+                      {canMove && (
+                        <div
+                          className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {column.id !== "TODO" && (
+                            <button
+                              onClick={() => {
+                                const prevStatus =
+                                  column.id === "DONE" ? "IN_PROGRESS" : "TODO";
+                                handleMoveTask(task.id, prevStatus);
+                              }}
+                              className="w-5 h-5 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-600 transition-colors cursor-pointer"
+                              title="Move Back"
+                            >
+                              <ArrowLeft className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                          {column.id !== "DONE" && (
+                            <button
+                              onClick={() => {
+                                const nextStatus =
+                                  column.id === "TODO" ? "IN_PROGRESS" : "DONE";
+                                handleMoveTask(task.id, nextStatus);
+                              }}
+                              className="w-5 h-5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
+                              title="Move Forward"
+                            >
+                              <ArrowRight className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Task Title */}
@@ -289,7 +300,8 @@ export default function KanbanBoard({
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+              })}
 
                 {columnTasks.length === 0 && (
                   <div className="h-28 border border-dashed border-stone-200 rounded-xl flex flex-col items-center justify-center text-stone-400 text-xs">

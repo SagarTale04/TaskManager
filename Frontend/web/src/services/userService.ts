@@ -10,7 +10,13 @@ interface UsersResponse {
 
 export async function getAllUsers(): Promise<User[]> {
   try {
-    const response = await apiClient.get<UsersResponse>("/users");
+    const response = await apiClient.get<UsersResponse>("/users", {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+      },
+    });
     return response.data?.users || [];
   } catch (err) {
     console.error("Failed to fetch users:", err);

@@ -11,8 +11,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const { login, isAuthenticated, loading: authLoading } = useAuth();
 
-  const [email, setEmail] = useState("admin@syncsprint.com");
-  const [password, setPassword] = useState("Password123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 

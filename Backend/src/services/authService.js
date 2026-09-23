@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { User } from "../models/index.js";
+import { User, Team, TeamMember } from "../models/index.js";
 import generateToken from "../utils/generateToken.js";
 
 export const registerUser = async ({
@@ -23,6 +23,29 @@ export const registerUser = async ({
     passwordHash,
     role: "DEVELOPER",
   });
+
+  // In non-test environments, automatically associate newly registered user with default workspace team
+  if (process.env.NODE_ENV !== "test") {
+    try {
+      const defaultTeam = await Team.findOne({ order: [["id", "ASC"]] });
+      if (defaultTeam) {
+        await TeamMember.findOrCreate({
+          where: {
+            userId: user.id,
+            teamId: defaultTeam.id,
+          },
+          defaults: {
+            userId: user.id,
+            teamId: defaultTeam.id,
+            role: "MEMBER",
+            joinedAt: new Date(),
+          },
+        });
+      }
+    } catch (teamErr) {
+      console.warn("Could not automatically link registered user to default team:", teamErr);
+    }
+  }
 
   const token = generateToken(user);
 
