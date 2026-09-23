@@ -1,0 +1,20 @@
+services:
+  backend:
+    build:
+      context: ./Backend
+    container_name: syncsprint-backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./Backend/.env.docker
+
+  frontend:
+    build:
+      context: ./Frontend/web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:5000/api
+    container_name: syncsprint-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
