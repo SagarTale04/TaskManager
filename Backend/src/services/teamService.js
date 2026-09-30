@@ -2,6 +2,7 @@ import sequelize from "../config/database.js";
 import Team from "../models/Team.js";
 import TeamMember from "../models/TeamMember.js";
 import User from "../models/User.js";
+import { cacheDel, cacheKeys } from "../utils/cacheHelper.js";
 
 export const createTeamService = async ({
   name,
@@ -126,6 +127,9 @@ export const addTeamMemberService = async ({
     joinedAt: new Date(),
   });
 
+  // Invalidate membership cache
+  cacheDel(cacheKeys.teamMember(teamId, userId)).catch(() => {});
+
   return member;
 };
 
@@ -160,6 +164,10 @@ export const updateTeamRoleService = async({teamId,userId,role})=>{
 
   member.role = role
   await member.save();
+
+  // Invalidate membership cache
+  cacheDel(cacheKeys.teamMember(teamId, userId)).catch(() => {});
+
   return member;
 };
 
@@ -185,5 +193,8 @@ export const removeTeamMemberService = async ({ teamId, userId }) => {
 
   await member.destroy();
 
+  // Invalidate membership cache
+  cacheDel(cacheKeys.teamMember(teamId, userId)).catch(() => {});
+
   return member;
-};
+};

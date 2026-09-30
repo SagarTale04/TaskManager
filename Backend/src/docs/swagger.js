@@ -315,8 +315,38 @@ export const swaggerSpec = {
         },
       },
     },
+    "/health/redis": {
+      get: {
+        tags: ["Health"],
+        summary: "Check Redis connection status",
+        description: "Returns connection status and operating mode of Redis cache.",
+        responses: {
+          200: {
+            description: "Redis health status",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    redis: {
+                      type: "object",
+                      properties: {
+                        connected: { type: "boolean", example: true },
+                        mode: { type: "string", example: "active" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     "/auth/register": {
       post: {
+
         tags: ["Auth"],
         summary: "Register a new user",
         description: "Creates a new user account with specified credentials and role.",
@@ -451,8 +481,41 @@ export const swaggerSpec = {
         },
       },
     },
+    "/auth/logout": {
+      post: {
+        tags: ["Auth"],
+        summary: "Logout and invalidate current JWT session",
+        description: "Revokes the active JWT token by placing it in the Redis blacklist.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "Successfully logged out",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    message: { type: "string", example: "Logged out successfully" },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "Unauthorized - missing or invalid token",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/teams": {
       post: {
+
         tags: ["Teams"],
         summary: "Create a new team",
         description: "Creates a new team. Requires SUPER_ADMIN or ADMIN role.",

@@ -4,9 +4,10 @@ import {
   getTaskWithAccess,
   getCommentWithAccess,
 } from "./accessService.js";
+import { emitToTask, emitToProject, emitToUser } from "../socket.js";
 
 export const createCommentService = async ({ taskId, userId, content }) => {
-  const { project } = await getTaskWithAccess({ taskId, userId });
+  const { project, task } = await getTaskWithAccess({ taskId, userId });
 
   if (project.status === "ARCHIVED") {
     const error = new Error("Cannot comment on a task in an archived project");
@@ -35,6 +36,23 @@ export const createCommentService = async ({ taskId, userId, content }) => {
       },
     ],
   });
+
+  // Real-time broadcasting via WebSocket + Redis Pub/Sub
+  try {
+    emitToTask(taskId, "comment:created", createdComment);
+    emitToProject(project.id, "comment:created", { taskId, comment: createdComment });
+
+    if (task && task.assignedTo && Number(task.assignedTo) !== Number(userId)) {
+      emitToUser(task.assignedTo, "notification:new", {
+        type: "COMMENT_ADDED",
+        taskId,
+        comment: createdComment,
+        message: `New comment on task: "${task.title}"`,
+      });
+    }
+  } catch (socketErr) {
+    // Soft degradation: socket emission error never blocks the database save
+  }
 
   return createdComment;
 };
@@ -94,6 +112,12 @@ export const updateCommentService = async ({ commentId, userId, content }) => {
     ],
   });
 
+  // Real-time broadcasting
+  try {
+    emitToTask(comment.taskId, "comment:updated", updated);
+    emitToProject(project.id, "comment:updated", { taskId: comment.taskId, comment: updated });
+  } catch (socketErr) {}
+
   return updated;
 };
 
@@ -120,7 +144,14 @@ export const deleteCommentService = async ({ commentId, userId }) => {
     throw error;
   }
 
+  const taskId = comment.taskId;
   await comment.destroy();
+
+  // Real-time broadcasting
+  try {
+    emitToTask(taskId, "comment:deleted", { id: commentId, taskId });
+    emitToProject(project.id, "comment:deleted", { id: commentId, taskId });
+  } catch (socketErr) {}
 
   return { id: commentId };
 };

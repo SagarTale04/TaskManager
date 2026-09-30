@@ -1,4 +1,18 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: syncsprint-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     build:
       context: ./Backend
@@ -7,14 +21,20 @@ services:
       - "5000:5000"
     env_file:
       - ./Backend/.env.docker
+    depends_on:
+      redis:
+        condition: service_healthy
 
   frontend:
     build:
       context: ./Frontend/web
-      args:
-        NEXT_PUBLIC_API_URL: http://localhost:5000/api
+    args:
+      NEXT_PUBLIC_API_URL: http://localhost:5000/api
     container_name: syncsprint-frontend
     ports:
       - "3000:3000"
     depends_on:
       - backend
+
+volumes:
+  redis_data:

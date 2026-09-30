@@ -174,3 +174,28 @@ Do not add unnecessary features.
 Before coding, inspect the existing frontend structure and preserve the existing Next.js/Tailwind setup.
 
 Build the UI using the attached screenshot as the visual reference and adapt that design system specifically for SyncSprint.
+
+---
+
+## REDIS INTEGRATION & NON-INTERFERENCE ARCHITECTURAL RULES (STATIC)
+
+To ensure system stability, high availability, and zero regression, all Redis features implemented in the backend must adhere strictly to these non-negotiable rules:
+
+1. **Redis is an Enhancement, NOT a Single Point of Failure (Soft Degradation)**:
+   - The application must NEVER crash or fail to serve requests if Redis is offline, unreachable, or encounters an internal error.
+   - All Redis operations (cache, rate limiting, token blacklist, pub/sub) MUST implement fail-open or graceful fallback to in-memory/direct PostgreSQL queries.
+
+2. **Zero Regressions & Backwards Compatibility**:
+   - Existing REST API contracts, request payloads, response structures, HTTP status codes, and database schemas must remain 100% backwards compatible.
+   - Controllers and services must maintain identical interfaces.
+
+3. **Test Suite Independence**:
+   - Automated test suites (`npm test`, Jest) must run cleanly without requiring an active external Redis instance.
+   - Redis must be bypassed, mocked, or set to no-op when `NODE_ENV === "test"` or `REDIS_ENABLED === "false"`.
+
+4. **Deterministic Key Namespaces & Strict TTLs**:
+   - Every Redis key must adhere to the standard namespace `syncsprint:<domain>:<id>`.
+   - Every cache or blacklist entry MUST have an explicit Time-To-Live (TTL) to prevent memory leaks in Redis.
+
+5. **Explicit Cache Invalidation**:
+   - Any create, update, or delete operation on an entity must explicitly invalidate all associated cached keys before or immediately after committing to PostgreSQL.

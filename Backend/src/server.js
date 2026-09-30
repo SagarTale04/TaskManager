@@ -1,7 +1,9 @@
+import http from "http";
 import dotenv from "dotenv";
 
 import app from "./app.js";
 import sequelize from "./config/database.js";
+import { initSocketServer } from "./socket.js";
 
 dotenv.config();
 
@@ -13,7 +15,18 @@ const startServer = async () => {
 
     console.log("Database connected successfully.");
 
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+
+    const allowedOrigins = [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      process.env.CLIENT_URL,
+      process.env.FRONTEND_URL,
+    ].filter(Boolean);
+
+    await initSocketServer(server, allowedOrigins);
+
+    server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   } catch (error) {

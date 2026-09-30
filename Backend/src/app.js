@@ -15,8 +15,10 @@ import { errorHandler } from "./middleware/errorMiddleware.js";
 import { apiLimiter } from "./middleware/rateLimiter.js";
 import { protect } from "./middleware/authMiddleware.js";
 import { getAllUsers } from "./controllers/authController.js";
+import { isRedisConnected } from "./config/redis.js";
 
 const app = express();
+
 
 // Security Headers with Swagger-compatible CSP
 app.use(
@@ -90,6 +92,17 @@ app.get("/api/health", (req, res) => {
         message: "SyncSprint API is running",
     });
 });
+app.get("/api/health/redis", (req, res) => {
+    const connected = isRedisConnected();
+    return res.status(200).json({
+        success: true,
+        redis: {
+            connected,
+            mode: connected ? "active" : "fallback",
+        },
+    });
+});
+
 
 // OpenAPI / Swagger Documentation
 app.use(

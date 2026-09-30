@@ -1,6 +1,8 @@
 import bcrypt from "bcrypt";
 import { User, Team, TeamMember } from "../models/index.js";
 import generateToken from "../utils/generateToken.js";
+import { blacklistToken } from "./tokenBlacklistService.js";
+import { safeDel } from "../config/redis.js";
 
 export const registerUser = async ({
   name,
@@ -49,6 +51,9 @@ export const registerUser = async ({
 
   const token = generateToken(user);
 
+  // Invalidate users directory cache so new user appears in assignee lists
+  safeDel("syncsprint:users:all").catch(() => {});
+
   return {
     user: {
       id: user.id,
@@ -87,5 +92,18 @@ export const loginUser = async({email,password})=>{
         },
         token
     }
+};
+
+/**
+ * Revokes active JWT token via Redis blacklist and purges cached user profile.
+ */
+export const logoutUser = async (token, userId) => {
+  if (token) {
+    await blacklistToken(token);
+  }
+  if (userId) {
+    await safeDel(`syncsprint:user:${userId}:profile`);
+  }
+  return true;
 };
 

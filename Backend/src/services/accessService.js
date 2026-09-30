@@ -4,9 +4,11 @@ import Task from "../models/Task.js";
 import Comment from "../models/Comment.js";
 import TeamMember from "../models/TeamMember.js";
 import User from "../models/User.js";
+import { cacheGet, cacheSet, cacheKeys, TTL } from "../utils/cacheHelper.js";
 
 /**
  * Validates project existence and user's membership in the project's team.
+ * Uses Redis to cache membership lookups to reduce repetitive DB joins.
  */
 export const getProjectWithAccess = async ({ projectId, userId, user: passedUser }) => {
   const project = await Project.findByPk(projectId);
@@ -30,17 +32,33 @@ export const getProjectWithAccess = async ({ projectId, userId, user: passedUser
     };
   }
 
-  const membership = await TeamMember.findOne({
-    where: {
-      teamId: project.teamId,
-      userId,
-    },
-  });
+  // Check Redis cache for user's team membership
+  const memberKey = cacheKeys.teamMember(project.teamId, userId);
+  let membership = await cacheGet(memberKey);
 
   if (!membership) {
-    const error = new Error("You do not have access to this project");
-    error.statusCode = 403;
-    throw error;
+    const dbMembership = await TeamMember.findOne({
+      where: {
+        teamId: project.teamId,
+        userId,
+      },
+    });
+
+    if (!dbMembership) {
+      const error = new Error("You do not have access to this project");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    membership = {
+      id: dbMembership.id,
+      teamId: dbMembership.teamId,
+      userId: dbMembership.userId,
+      role: dbMembership.role,
+    };
+
+    // Cache membership for 15 minutes
+    await cacheSet(memberKey, membership, TTL.LONG);
   }
 
   return { project, membership };

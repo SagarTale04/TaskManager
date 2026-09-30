@@ -76,6 +76,47 @@ describe("Auth API", () => {
     expect(response.body.success).toBe(false);
   });
 
+  test("POST /api/auth/logout should blacklist token and reject subsequent requests", async () => {
+    const loginResponse = await request(app)
+      .post("/api/auth/login")
+      .send({
+        email: "test@syncsprint.com",
+        password: "Password123!",
+      });
+
+    const token =
+      loginResponse.body.data?.token ??
+      loginResponse.body.token;
+
+    expect(token).toBeDefined();
+
+    // Verify token works before logout
+    const preLogoutRes = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(preLogoutRes.status).toBe(200);
+    expect(preLogoutRes.body.success).toBe(true);
+
+    // Perform logout
+    const logoutRes = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(logoutRes.status).toBe(200);
+    expect(logoutRes.body.success).toBe(true);
+    expect(logoutRes.body.message).toBe("Logged out successfully");
+
+    // Attempt to access protected endpoint with the revoked token
+    const postLogoutRes = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(postLogoutRes.status).toBe(401);
+    expect(postLogoutRes.body.success).toBe(false);
+    expect(postLogoutRes.body.message).toBe("Token has been revoked or invalidated");
+  });
+
   afterAll(async () => {
     await User.destroy({
       where: {

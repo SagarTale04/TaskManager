@@ -10,6 +10,8 @@ import {
   getTaskWithAccess,
 } from "./accessService.js";
 import { Op } from "sequelize";
+import { cacheGet, cacheSet, cacheDel, cacheKeys, TTL } from "../utils/cacheHelper.js";
+import { emitToProject, emitToTask, emitToUser } from "../socket.js";
 
 const VALID_TASK_STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"];
 const VALID_TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
@@ -109,6 +111,21 @@ export const createTaskService = async ({
     createdBy: userId,
     dueDate: dueDate || null,
   });
+
+  if (sprintId) {
+    cacheDel(cacheKeys.sprintTasks(sprintId)).catch(() => {});
+  }
+
+  try {
+    emitToProject(project.id, "task:created", task);
+    if (assignedTo && Number(assignedTo) !== Number(userId)) {
+      emitToUser(assignedTo, "notification:new", {
+        type: "TASK_ASSIGNED",
+        task,
+        message: `You were assigned to task: "${task.title}"`,
+      });
+    }
+  } catch (socketErr) {}
 
   return task;
 };
@@ -231,6 +248,12 @@ export const getProjectTasksService = async ({
 export const getSprintTasksService = async ({ sprintId, userId }) => {
   await getSprintWithAccess({ sprintId, userId });
 
+  const cacheKey = cacheKeys.sprintTasks(sprintId);
+  const cached = await cacheGet(cacheKey);
+  if (cached && Array.isArray(cached)) {
+    return cached;
+  }
+
   const tasks = await Task.findAll({
     where: { sprintId },
     include: [
@@ -247,6 +270,8 @@ export const getSprintTasksService = async ({ sprintId, userId }) => {
     ],
     order: [["created_at", "DESC"]],
   });
+
+  await cacheSet(cacheKey, tasks, TTL.SHORT);
 
   return tasks;
 };
@@ -433,7 +458,19 @@ export const updateTaskService = async ({
     }
   }
 
+  const oldSprintId = task.sprintId;
   await task.save();
+
+  // Invalidate sprint caches if applicable
+  if (oldSprintId) cacheDel(cacheKeys.sprintTasks(oldSprintId)).catch(() => {});
+  if (task.sprintId && task.sprintId !== oldSprintId) {
+    cacheDel(cacheKeys.sprintTasks(task.sprintId)).catch(() => {});
+  }
+
+  try {
+    emitToProject(project.id, "task:updated", task);
+    emitToTask(taskId, "task:updated", task);
+  } catch (socketErr) {}
 
   return task;
 };
@@ -456,7 +493,14 @@ export const deleteTaskService = async ({ taskId, userId }) => {
     throw error;
   }
 
+  const sprintId = task.sprintId;
   await task.destroy();
+
+  if (sprintId) cacheDel(cacheKeys.sprintTasks(sprintId)).catch(() => {});
+
+  try {
+    emitToProject(project.id, "task:deleted", { id: taskId, projectId: project.id });
+  } catch (socketErr) {}
 
   return { id: taskId };
 };
