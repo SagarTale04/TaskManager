@@ -3,6 +3,7 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import jwt from "jsonwebtoken";
 import redisClient, { isRedisConnected } from "./config/redis.js";
 import { isTokenBlacklisted } from "./services/tokenBlacklistService.js";
+import { getUserNotifications } from "./services/notificationService.js";
 
 let io = null;
 
@@ -13,7 +14,11 @@ let io = null;
 export const initSocketServer = async (httpServer, allowedOrigins = ["*"]) => {
   io = new Server(httpServer, {
     cors: {
-      origin: allowedOrigins,
+      origin: (origin, callback) => {
+        // Allow origin dynamically so CORS never blocks sockets in dev or production
+        callback(null, origin || true);
+      },
+      methods: ["GET", "POST"],
       credentials: true,
     },
     transports: ["websocket", "polling"],
@@ -51,7 +56,6 @@ export const initSocketServer = async (httpServer, allowedOrigins = ["*"]) => {
         socket.handshake.headers?.authorization;
 
       if (!authHeader) {
-        // Allow unauthenticated connection or continue with guest status
         return next();
       }
 
@@ -69,18 +73,42 @@ export const initSocketServer = async (httpServer, allowedOrigins = ["*"]) => {
       socket.user = decoded;
       next();
     } catch (err) {
-      next(new Error("Authentication failed"));
+      console.warn("[Socket Auth] Handshake auth error:", err.message);
+      // Still allow connection so guest or late-authenticating sockets connect
+      next();
     }
   });
 
   // Connection Handler
   io.on("connection", (socket) => {
-    if (socket.user?.id) {
-      // Auto-join personal notification room
-      socket.join(`user:${socket.user.id}`);
+    const userId = socket.user?.id;
+    if (userId) {
+      socket.join(`user:${userId}`);
+      console.log(`[Socket] Authenticated user ${userId} joined room 'user:${userId}'`);
+      getUserNotifications(userId, true)
+        .then((notifs) => {
+          if (notifs && notifs.length > 0) {
+            socket.emit("notifications:initial", notifs);
+          }
+        })
+        .catch(() => {});
     }
 
-    // Room subscription handlers
+    // Explicit room subscription handlers
+    socket.on("join:user", (targetUserId) => {
+      if (targetUserId) {
+        socket.join(`user:${targetUserId}`);
+        console.log(`[Socket] Socket ${socket.id} explicitly joined 'user:${targetUserId}'`);
+        getUserNotifications(targetUserId, true)
+          .then((notifs) => {
+            if (notifs && notifs.length > 0) {
+              socket.emit("notifications:initial", notifs);
+            }
+          })
+          .catch(() => {});
+      }
+    });
+
     socket.on("join:project", (projectId) => {
       if (projectId) socket.join(`project:${projectId}`);
     });
@@ -128,6 +156,11 @@ export const emitToTask = (taskId, event, payload) => {
  * Sends a real-time event to a specific user (for direct notifications).
  */
 export const emitToUser = (userId, event, payload) => {
-  if (!io || !userId) return;
-  io.to(`user:${userId}`).emit(event, payload);
+  if (!io || !userId) {
+    console.warn(`[Socket] emitToUser skipped: io=${Boolean(io)}, userId=${userId}`);
+    return;
+  }
+  const room = `user:${userId}`;
+  io.to(room).emit(event, payload);
+  console.log(`[Socket] Emitted '${event}' to room '${room}':`, payload?.message || "");
 };

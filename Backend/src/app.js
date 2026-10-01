@@ -11,6 +11,7 @@ import projectRoutes from "./routes/projectRoutes.js";
 import sprintRoutes from "./routes/sprintRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 import commentRoutes from "./routes/commentRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import { errorHandler } from "./middleware/errorMiddleware.js";
 import { apiLimiter } from "./middleware/rateLimiter.js";
 import { protect } from "./middleware/authMiddleware.js";
@@ -85,6 +86,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/sprints", sprintRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/comments", commentRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.get("/api/users", protect, getAllUsers);
 app.get("/api/health", (req, res) => {
     return res.status(200).json({

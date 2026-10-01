@@ -5,6 +5,7 @@ import {
   getCommentWithAccess,
 } from "./accessService.js";
 import { emitToTask, emitToProject, emitToUser } from "../socket.js";
+import { createNotificationForUser } from "./notificationService.js";
 
 export const createCommentService = async ({ taskId, userId, content }) => {
   const { project, task } = await getTaskWithAccess({ taskId, userId });
@@ -43,12 +44,17 @@ export const createCommentService = async ({ taskId, userId, content }) => {
     emitToProject(project.id, "comment:created", { taskId, comment: createdComment });
 
     if (task && task.assignedTo && Number(task.assignedTo) !== Number(userId)) {
-      emitToUser(task.assignedTo, "notification:new", {
+      createNotificationForUser(task.assignedTo, {
         type: "COMMENT_ADDED",
         taskId,
-        comment: createdComment,
-        message: `New comment on task: "${task.title}"`,
-      });
+        projectId: project.id,
+        task: {
+          id: task.id,
+          title: task.title,
+          projectId: project.id,
+        },
+        message: `New comment on task "${task.title}": "${content.slice(0, 50)}${content.length > 50 ? "..." : ""}"`,
+      }).catch(() => {});
     }
   } catch (socketErr) {
     // Soft degradation: socket emission error never blocks the database save

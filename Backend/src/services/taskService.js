@@ -12,6 +12,7 @@ import {
 import { Op } from "sequelize";
 import { cacheGet, cacheSet, cacheDel, cacheKeys, TTL } from "../utils/cacheHelper.js";
 import { emitToProject, emitToTask, emitToUser } from "../socket.js";
+import { createNotificationForUser } from "./notificationService.js";
 
 const VALID_TASK_STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"];
 const VALID_TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
@@ -116,18 +117,36 @@ export const createTaskService = async ({
     cacheDel(cacheKeys.sprintTasks(sprintId)).catch(() => {});
   }
 
+  const plainTask = {
+    id: task.id,
+    projectId: task.projectId,
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    priority: task.priority,
+    storyPoints: task.storyPoints,
+    assignedTo: task.assignedTo,
+    sprintId: task.sprintId,
+    dueDate: task.dueDate,
+  };
+
   try {
-    emitToProject(project.id, "task:created", task);
+    emitToProject(project.id, "task:created", plainTask);
     if (assignedTo && Number(assignedTo) !== Number(userId)) {
-      emitToUser(assignedTo, "notification:new", {
+      createNotificationForUser(assignedTo, {
         type: "TASK_ASSIGNED",
-        task,
+        task: plainTask,
+        taskId: task.id,
+        projectId: project.id,
         message: `You were assigned to task: "${task.title}"`,
-      });
+      }).catch(() => {});
     }
-  } catch (socketErr) {}
+  } catch (socketErr) {
+    console.error("[Socket createTask emit error]:", socketErr.message);
+  }
 
   return task;
+
 };
 
 export const getProjectTasksService = async ({
@@ -436,6 +455,7 @@ export const updateTaskService = async ({
     }
   }
 
+  const previousAssignedTo = task.assignedTo;
   if (assignedTo !== undefined) {
     if (assignedTo === null || assignedTo === 0) {
       task.assignedTo = null;
@@ -467,12 +487,43 @@ export const updateTaskService = async ({
     cacheDel(cacheKeys.sprintTasks(task.sprintId)).catch(() => {});
   }
 
+  const plainTask = {
+    id: task.id,
+    projectId: task.projectId,
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    priority: task.priority,
+    storyPoints: task.storyPoints,
+    assignedTo: task.assignedTo,
+    sprintId: task.sprintId,
+    dueDate: task.dueDate,
+  };
+
   try {
-    emitToProject(project.id, "task:updated", task);
-    emitToTask(taskId, "task:updated", task);
-  } catch (socketErr) {}
+    emitToProject(project.id, "task:updated", plainTask);
+    emitToTask(taskId, "task:updated", plainTask);
+
+    // If task was newly assigned or reassigned to a teammate, send real-time notification
+    if (
+      task.assignedTo &&
+      Number(task.assignedTo) !== Number(previousAssignedTo) &&
+      Number(task.assignedTo) !== Number(userId)
+    ) {
+      createNotificationForUser(task.assignedTo, {
+        type: "TASK_ASSIGNED",
+        task: plainTask,
+        taskId: task.id,
+        projectId: project.id,
+        message: `You were assigned to task: "${task.title}"`,
+      }).catch(() => {});
+    }
+  } catch (socketErr) {
+    console.error("[Socket updateTask emit error]:", socketErr.message);
+  }
 
   return task;
+
 };
 
 export const deleteTaskService = async ({ taskId, userId }) => {

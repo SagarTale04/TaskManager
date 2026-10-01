@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/src/context/AuthContext";
 import { TaskInteractionProvider } from "@/src/context/TaskInteractionContext";
+import { SocketProvider } from "@/src/context/SocketContext";
 
 export const metadata: Metadata = {
   title: "SyncSprint — Modern Sprint & Project Workspace",
@@ -17,11 +18,14 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-[#f7f6f2] text-stone-900 min-h-screen antialiased selection:bg-emerald-100 selection:text-emerald-900">
         <AuthProvider>
-          <TaskInteractionProvider>
-            {children}
-          </TaskInteractionProvider>
+          <SocketProvider>
+            <TaskInteractionProvider>
+              {children}
+            </TaskInteractionProvider>
+          </SocketProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
+

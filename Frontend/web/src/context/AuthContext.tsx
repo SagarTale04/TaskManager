@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { User } from "@/src/types";
-import { loginApi, registerApi, getMeApi, LoginCredentials, RegisterPayload } from "@/src/services/auth";
+import { loginApi, registerApi, getMeApi, logoutApi, LoginCredentials, RegisterPayload } from "@/src/services/auth";
 import { getStoredToken, setStoredToken, removeStoredToken } from "@/src/lib/api";
 
 const DEFAULT_AVATAR =
@@ -43,10 +43,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const logout = useCallback(() => {
+    const currentToken = getStoredToken();
+    if (currentToken) {
+      logoutApi(currentToken).catch(() => {});
+    }
     removeStoredToken();
     setToken(null);
     setUser(null);
   }, []);
+
 
   const refreshUser = useCallback(async () => {
     const currentToken = getStoredToken();

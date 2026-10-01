@@ -43,3 +43,12 @@ export async function getMeApi(token?: string): Promise<User> {
   const response = await apiClient.get<ProfileResponse>("/auth/me", { token });
   return response.data.user;
 }
+
+export async function logoutApi(token?: string): Promise<{ success: boolean; message: string }> {
+  try {
+    return await apiClient.post<{ success: boolean; message: string }>("/auth/logout", {}, { token });
+  } catch {
+    return { success: true, message: "Logged out" };
+  }
+}
+
